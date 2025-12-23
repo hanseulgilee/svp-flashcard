@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVP-PREP 스마트 플래시카드 (AI Enhanced)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/generative-ai": "https://esm.run/@google/generative-ai"
+        }
+      }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f0f4f8;
+        }
+
+        /* 3D Flip Animation Styles */
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+        
+        .flip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+        
+        .flip-card-inner.is-flipped {
+            transform: rotateY(180deg);
+        }
+        
+        .flip-card-front, .flip-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+        
+        .flip-card-front {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .flip-card-back {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            transform: rotateY(180deg);
+        }
+
+        .category-btn.active {
+            background-color: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+        /* Chatbot Styles */
+        .chat-container {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            display: none;
+            flex-direction: column;
+            z-index: 50;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: #f8fafc;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            max-width: 80%;
+            padding: 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .message.user {
+            background-color: #3b82f6;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 0.25rem;
+        }
+
+        .message.bot {
+            background-color: #e2e8f0;
+            color: #1e293b;
+            margin-right: auto;
+            border-bottom-left-radius: 0.25rem;
+        }
+        
+        /* Loading Dot Animation */
+        .dot-flashing {
+            position: relative;
+            width: 6px;
+            height: 6px;
+            border-radius: 5px;
+            background-color: #9ca3af;
+            color: #9ca3af;
+            animation: dot-flashing 1s infinite linear alternate;
+            animation-delay: 0.5s;
+        }
+        .dot-flashing::before, .dot-flashing::after {
+            content: "";
+            display: inline-block;
+            position: absolute;
+            top: 0;
+        }
+        .dot-flashing::before {
+            left: -10px;
+            width: 6px;
+            height: 6px;
+            border-radius: 5px;
+            background-color: #9ca3af;
+            color: #9ca3af;
+            animation: dot-flashing 1s infinite alternate;
+            animation-delay: 0s;
+        }
+        .dot-flashing::after {
+            left: 10px;
+            width: 6px;
+            height: 6px;
+            border-radius: 5px;
+            background-color: #9ca3af;
+            color: #9ca3af;
+            animation: dot-flashing 1s infinite alternate;
+            animation-delay: 1s;
+        }
+
+        @keyframes dot-flashing {
+            0% { background-color: #9ca3af; }
+            50%, 100% { background-color: #e2e8f0; }
+        }
+
+        /* Markdown-like styling for AI response */
+        .prose strong { font-weight: 700; color: inherit; }
+        .prose ul { list-style-type: disc; padding-left: 1.2em; margin: 0.5em 0; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Header Section -->
+    <header class="text-center mb-8 max-w-2xl w-full">
+        <div class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full mb-3 flex items-center justify-center gap-1 mx-auto w-fit">
+            <span>SVP-PREP + Gemini</span>
+            <i class="fas fa-sparkles text-yellow-500"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-slate-800 mb-2">핵심요약 플래시카드</h1>
+        <p class="text-slate-500 text-sm">카드를 뒤집어 학습하고, AI 동료와 대화하며 마음을 챙기세요.</p>
+    </header>
+
+    <!-- Category Filter -->
+    <div class="flex flex-wrap justify-center gap-2 mb-8 max-w-3xl w-full" id="categoryContainer">
+        <!-- Categories will be injected here -->
+    </div>
+
+    <!-- Flashcard Section -->
+    <div class="w-full max-w-md h-96 perspective-1000 mb-8">
+        <div class="flip-card-inner bg-white" id="flashcard">
+            
+            <!-- Front Side -->
+            <div class="flip-card-front" onclick="toggleFlip()">
+                <div class="absolute top-4 left-4">
+                    <span id="cardCategory" class="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded">개념 이해</span>
+                </div>
+                <div class="absolute top-4 right-4 text-slate-300">
+                    <i class="fas fa-question-circle text-2xl"></i>
+                </div>
+                <h2 class="text-xl font-bold mb-4 text-center px-4">Q. <span id="cardQuestion">질문이 여기에 표시됩니다.</span></h2>
+                <p class="text-sm text-slate-400 mt-4 animate-bounce">
+                    <i class="fas fa-hand-pointer mr-1"></i> 탭하여 정답 확인
+                </p>
+            </div>
+
+            <!-- Back Side -->
+            <div class="flip-card-back">
+                <div class="absolute top-4 left-4">
+                    <span class="text-xs font-bold text-blue-100 bg-blue-600 bg-opacity-30 px-2 py-1 rounded">정답</span>
+                </div>
+                <div class="absolute top-4 right-4 text-blue-200 cursor-pointer hover:text-white transition" onclick="resetFlip()" title="다시 뒤집기">
+                    <i class="fas fa-undo text-xl"></i>
+                </div>
+                
+                <div onclick="toggleFlip()" class="flex flex-col items-center justify-center flex-1 w-full">
+                    <h3 class="text-lg font-bold mb-3 text-center" id="cardAnswerTitle">핵심 키워드</h3>
+                    <p class="text-sm leading-relaxed mb-4 opacity-90 text-center px-2" id="cardAnswerDesc">
+                        상세 설명이 여기에 표시됩니다.
+                    </p>
+                    <div class="mt-2 text-center">
+                        <p class="text-xs text-blue-100" id="cardSource">출처: 문헌고찰</p>
+                    </div>
+                </div>
+
+                <!-- AI Feature Button on Back -->
+                <div class="w-full mt-4 pt-3 border-t border-blue-400 border-opacity-40 flex justify-center">
+                    <button onclick="askAIForExample(event)" class="flex items-center gap-2 bg-white text-blue-600 px-4 py-2 rounded-full text-xs font-bold shadow-md hover:bg-blue-50 transition transform hover:scale-105">
+                        <i class="fas fa-sparkles text-yellow-500"></i> AI 임상 사례 보기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex items-center gap-4 mb-6">
+        <button onclick="prevCard()" class="w-12 h-12 rounded-full bg-white text-slate-600 shadow-lg hover:bg-slate-50 active:scale-95 transition flex items-center justify-center">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        
+        <div class="bg-white px-4 py-2 rounded-full shadow-sm text-sm font-medium text-slate-600">
+            <span id="currentIndex">1</span> / <span id="totalIndex">10</span>
+        </div>
+
+        <button onclick="nextCard()" class="w-12 h-12 rounded-full bg-white text-blue-600 shadow-lg hover:bg-blue-50 active:scale-95 transition flex items-center justify-center">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="w-full max-w-md h-1.5 bg-slate-200 rounded-full overflow-hidden mb-8">
+        <div id="progressBar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+    </div>
+
+    <!-- Floating Action Buttons -->
+    <div class="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
+        <button onclick="openApiKeyModal()" class="w-12 h-12 rounded-full bg-slate-800 text-white shadow-lg hover:bg-slate-700 transition flex items-center justify-center tooltip-trigger" title="AI 설정">
+            <i class="fas fa-cog"></i>
+        </button>
+        <button onclick="toggleChat()" class="w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-500 transition flex items-center justify-center animate-pulse-slow">
+            <i class="fas fa-comments text-2xl"></i>
+        </button>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chatContainer" class="chat-container">
+        <div class="bg-blue-600 text-white p-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-robot"></i>
+                <span class="font-bold">AI 동료 상담사</span>
+            </div>
+            <button onclick="toggleChat()" class="text-blue-100 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+            <div class="message bot">
+                안녕하세요! 저는 선생님의 이야기를 들어줄 동료 AI입니다. <br>
+                환자안전사건으로 인해 마음이 힘드신가요? 편하게 이야기해주세요. (비밀은 보장됩니다 🤫)
+            </div>
+        </div>
+        <div class="p-3 bg-white border-t border-slate-200">
+            <div class="flex gap-2">
+                <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." 
+                       class="flex-1 border border-slate-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+                       onkeypress="handleChatKeyPress(event)">
+                <button onclick="sendMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-700 transition">
+                    <i class="fas fa-paper-plane text-sm"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Modal -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+            <h3 class="text-lg font-bold mb-2">Gemini API 설정</h3>
+            <p class="text-sm text-slate-500 mb-4">AI 기능을 사용하려면 API 키가 필요합니다. 입력된 키는 브라우저에만 임시 저장됩니다.</p>
+            <input type="password" id="apiKeyInput" placeholder="Google Gemini API Key 입력" 
+                   class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeApiKeyModal()" class="px-4 py-2 text-slate-600 text-sm hover:bg-slate-100 rounded-lg">취소</button>
+                <button onclick="saveApiKey()" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Content Modal -->
+    <div id="aiModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-xl max-w-lg w-full max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white flex justify-between items-center">
+                <h3 class="font-bold flex items-center gap-2"><i class="fas fa-sparkles text-yellow-300"></i> AI 임상 사례 & 해설</h3>
+                <button onclick="closeAiModal()" class="hover:text-blue-100"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="aiModalContent" class="p-6 overflow-y-auto text-slate-700 leading-relaxed text-sm">
+                <!-- Content will be injected here -->
+                <div class="flex justify-center py-8">
+                    <div class="dot-flashing"></div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 bg-slate-50 text-right">
+                <button onclick="closeAiModal()" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GoogleGenerativeAI } from "@google/generative-ai";
+
+        // Expose AI functions to global scope
+        window.saveApiKey = saveApiKey;
+        window.sendMessage = sendMessage;
+        window.askAIForExample = askAIForExample;
+
+        let genAI = null;
+        let model = null;
+        let chat = null;
+
+        function getApiKey() {
+            return sessionStorage.getItem('gemini_api_key');
+        }
+
+        function initGenAI() {
+            const key = getApiKey();
+            if (key) {
+                genAI = new GoogleGenerativeAI(key);
+                model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-09-2025" });
+                
+                // Initialize chat with peer support persona
+                chat = model.startChat({
+                    history: [
+                        {
+                            role: "user",
+                            parts: [{ text: "당신은 환자안전사건을 경험한 간호사를 돕는 따뜻하고 공감적인 동료이자 '동료 지지자(Peer Supporter)'입니다. 사용자가 겪은 실수나 감정에 대해 비난하지 않고, 적극적으로 경청하며, SVP-PREP 프로그램의 대처 전략(심호흡, 긍정적 재해석 등)을 부드럽게 권유해주세요. 의료적 조언은 하지 않으며, 자살 위험 징후가 보이면 전문가 상담을 권하세요. 한국어로, 존댓말(해요체)로 친절하게 대화하세요." }],
+                        },
+                        {
+                            role: "model",
+                            parts: [{ text: "안녕하세요, 선생님. 저는 선생님의 이야기를 들어드리고 함께 고민을 나눌 동료 지지자입니다. 오늘 하루는 어떠셨나요? 혹시 마음 한구석에 무거운 짐이 있다면 저에게 털어놓으셔도 좋아요. 비밀은 꼭 지킬게요." }],
+                        },
+                    ],
+                });
+            }
+        }
+
+        function saveApiKey() {
+            const input = document.getElementById('apiKeyInput');
+            const key = input.value.trim();
+            if (key) {
+                sessionStorage.setItem('gemini_api_key', key);
+                initGenAI();
+                closeApiKeyModal();
+                alert('API 키가 저장되었습니다. AI 기능을 사용할 수 있습니다.');
+            } else {
+                alert('API 키를 입력해주세요.');
+            }
+        }
+
+        async function sendMessage() {
+            if (!getApiKey()) {
+                openApiKeyModal();
+                return;
+            }
+
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // UI Update: User Message
+            const messagesContainer = document.getElementById('chatMessages');
+            messagesContainer.innerHTML += `<div class="message user">${escapeHtml(message)}</div>`;
+            input.value = '';
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Show Loading
+            const loadingId = 'loading-' + Date.now();
+            messagesContainer.innerHTML += `
+                <div id="${loadingId}" class="message bot flex items-center gap-2">
+                    <div class="dot-flashing mx-2 my-1"></div>
+                </div>`;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            try {
+                if (!chat) initGenAI();
+                const result = await chat.sendMessage(message);
+                const response = result.response.text();
+
+                // Remove loading and show response
+                document.getElementById(loadingId).remove();
+                messagesContainer.innerHTML += `<div class="message bot prose">${formatAIResponse(response)}</div>`;
+            } catch (error) {
+                document.getElementById(loadingId).remove();
+                messagesContainer.innerHTML += `<div class="message bot text-red-500">오류가 발생했습니다. API 키를 확인해주세요.</div>`;
+                console.error(error);
+            }
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        async function askAIForExample(event) {
+            event.stopPropagation(); // Prevent card flip
+            
+            if (!getApiKey()) {
+                openApiKeyModal();
+                return;
+            }
+
+            // Get current card data
+            const currentCard = allCards[window.currentIndex]; // Access global variable
+            const prompt = `
+                간호사를 위한 제2의 피해자 예방 프로그램 학습 중입니다.
+                다음 개념에 대해 임상 현장에서 발생할 수 있는 구체적인 가상 사례(시나리오)와 간호사가 어떻게 대처해야 하는지 따뜻한 조언을 포함해서 설명해주세요.
+                
+                개념: ${currentCard.answerTitle}
+                설명: ${currentCard.answerDesc}
+                
+                출력 형식:
+                1. 🏥 임상 사례 시나리오 (구체적으로)
+                2. 💡 적용 포인트 및 조언
+            `;
+
+            document.getElementById('aiModal').classList.remove('hidden');
+            document.getElementById('aiModalContent').innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12 gap-4">
+                    <div class="dot-flashing bg-blue-400"></div>
+                    <p class="text-slate-500 text-xs">AI가 열심히 사례를 생성하고 있습니다...</p>
+                </div>`;
+
+            try {
+                if (!model) initGenAI();
+                const result = await model.generateContent(prompt);
+                const response = result.response.text();
+                
+                document.getElementById('aiModalContent').innerHTML = `<div class="prose space-y-4">${formatAIResponse(response)}</div>`;
+            } catch (error) {
+                document.getElementById('aiModalContent').innerHTML = `<p class="text-red-500 text-center">오류가 발생했습니다.<br>API 키를 확인하거나 잠시 후 다시 시도해주세요.</p>`;
+            }
+        }
+
+        // Helper to format text with simple markdown
+        function formatAIResponse(text) {
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on load if key exists
+        if(getApiKey()) initGenAI();
+
+    </script>
+
+    <script>
+        // --- Existing Flashcard Logic (Updated) ---
+
+        const allCards = [
+            {
+                id: 1,
+                category: "개념 정의",
+                question: "'제2의 피해자(Second Victim)'란 누구를 의미하나요?",
+                answerTitle: "환자안전사건에 연루된 의료진",
+                answerDesc: "예상치 못한 환자안전사건에 직간접적으로 연루되어 죄책감, 불안, 수면 장애 등 심리적·정서적 어려움을 겪는 간호사, 의사 등 모든 보건의료인을 말합니다.",
+                source: "출처: Albert Wu (2000), Scott et al. (2009)"
+            },
+            {
+                id: 2,
+                category: "개념 정의",
+                question: "환자안전사건의 '제3의 피해자'는 누구인가요?",
+                answerTitle: "의료기관 (Healthcare Organization)",
+                answerDesc: "사건 발생으로 인해 명예 실추, 환자 신뢰 하락, 소송 비용 발생 등 조직 차원의 손해를 입는 병원이나 기관을 의미합니다.",
+                source: "출처: Denham (2007)"
+            },
+            {
+                id: 3,
+                category: "회복 과정",
+                question: "Scott의 회복 6단계 중, 사건 직후 '어떻게 이런 일이?'라며 혼란을 겪는 첫 단계는?",
+                answerTitle: "1단계: 혼돈과 사고 반응",
+                answerDesc: "(Chaos and Accident Response) 사건을 처음 인식하고 충격, 공포, 당황스러움, 무력감을 경험하며 내적 혼란을 겪는 시기입니다.",
+                source: "출처: Scott et al. (2009)"
+            },
+            {
+                id: 4,
+                category: "회복 과정",
+                question: "회복 과정의 결과 중 하나로, 사건을 통해 통찰력을 얻고 긍정적으로 변화하는 상태는?",
+                answerTitle: "성장 (Thriving)",
+                answerDesc: "단순한 생존(Surviving)이나 포기(Dropping out)가 아닌, 자기 수용과 연민을 통해 사건 이전보다 더 성숙해지고 환자안전 개선에 기여하는 상태입니다.",
+                source: "출처: Scott et al. (2009)"
+            },
+            {
+                id: 5,
+                category: "지원 전략",
+                question: "제2의 피해자가 가장 선호하는 지원 방식이자, 정서적 응급처치의 핵심은?",
+                answerTitle: "동료 지지 (Peer Support)",
+                answerDesc: "비난 없이 경청하고 공감해 주는 동료의 존재가 회복의 핵심입니다. 연구 결과, 많은 의료진이 전문 상담보다 동료와의 대화를 선호했습니다.",
+                source: "출처: Choi et al. (2022)"
+            },
+            {
+                id: 6,
+                category: "지원 전략",
+                question: "Scott의 3단계 중재 모델(Three-Tiered Model)에서 '2단계' 지원은 무엇인가요?",
+                answerTitle: "훈련된 동료의 지원 (Trained Peer Support)",
+                answerDesc: "1단계(부서/동료의 일반적 지지)를 넘어, 전문 교육을 받은 동료(Peer Supporter)가 1:1로 제공하는 구조화된 정서적 지지 및 디브리핑입니다.",
+                source: "출처: Scott et al. (2010)"
+            },
+            {
+                id: 7,
+                category: "조직 문화",
+                question: "실수를 개인의 비난보다 '학습의 기회'로 보고 시스템적으로 접근하는 문화는?",
+                answerTitle: "공정 문화 (Just Culture)",
+                answerDesc: "인적 오류는 시스템의 문제로 보되, 고의적 위반과 실수를 구분하여 공정하게 책임을 묻고 안전을 학습하는 환경입니다.",
+                source: "출처: Marx (2001), AHRQ"
+            },
+            {
+                id: 8,
+                category: "이론적 배경",
+                question: "스위스 치즈 모델에서 '잠재적 조건(Latent conditions)'이란?",
+                answerTitle: "시스템 및 설계상의 결함",
+                answerDesc: "조직의 구조, 정책, 인력 부족 등 평소엔 드러나지 않다가, 의료진의 실수(능동적 실패)와 결합될 때 사고를 유발하는 구멍들을 말합니다.",
+                source: "출처: James Reason (2000)"
+            },
+            {
+                id: 9,
+                category: "소통 방안",
+                question: "환자/보호자에게 사건 발생 사실을 정직하게 알리고 사과하는 절차는?",
+                answerTitle: "환자안전사건 소통하기 (Disclosure)",
+                answerDesc: "영국의 '성실의 의무(Duty of Candour)'처럼, 투명한 정보 제공과 진심 어린 사과는 소송을 줄이고 신뢰를 회복하는 핵심입니다.",
+                source: "출처: AHRQ CANDOR Toolkit"
+            },
+            {
+                id: 10,
+                category: "대처 전략",
+                question: "사건 후 '회피 중심 대처(Avoidance-Oriented Coping)'의 장기적 위험성은?",
+                answerTitle: "회복 지연 및 번아웃 위험 증가",
+                answerDesc: "술/약물에 의존하거나 환자를 피하는 행동은 단기적 불안은 낮출 수 있으나, 장기적으로는 직업 만족도를 떨어뜨리고 이직 의도를 높입니다.",
+                source: "출처: Busch et al. (2020)"
+            }
+        ];
+
+        // State Management
+        let currentCards = [...allCards];
+        let currentIndex = 0;
+        let isFlipped = false;
+        let activeCategory = '전체';
+        window.currentIndex = 0; // Expose for AI
+
+        // DOM Elements
+        const flashcardEl = document.getElementById('flashcard');
+        const questionEl = document.getElementById('cardQuestion');
+        const categoryEl = document.getElementById('cardCategory');
+        const answerTitleEl = document.getElementById('cardAnswerTitle');
+        const answerDescEl = document.getElementById('cardAnswerDesc');
+        const sourceEl = document.getElementById('cardSource');
+        const currentIndexEl = document.getElementById('currentIndex');
+        const totalIndexEl = document.getElementById('totalIndex');
+        const progressBarEl = document.getElementById('progressBar');
+        const categoryContainer = document.getElementById('categoryContainer');
+        const chatContainer = document.getElementById('chatContainer');
+
+        // Initialize Categories
+        function initCategories() {
+            const categories = ['전체', ...new Set(allCards.map(card => card.category))];
+            
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `category-btn px-4 py-2 rounded-full border border-slate-200 text-sm font-medium transition hover:bg-slate-100 ${cat === '전체' ? 'active' : 'bg-white text-slate-600'}`;
+                btn.innerText = cat;
+                btn.onclick = () => filterCategory(cat, btn);
+                categoryContainer.appendChild(btn);
+            });
+        }
+
+        function filterCategory(category, btnElement) {
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-blue-600', 'text-white', 'border-blue-600');
+                btn.classList.add('bg-white', 'text-slate-600');
+            });
+            btnElement.classList.add('active');
+            btnElement.classList.remove('bg-white', 'text-slate-600');
+
+            activeCategory = category;
+            if (category === '전체') {
+                currentCards = [...allCards];
+            } else {
+                currentCards = allCards.filter(card => card.category === category);
+            }
+            
+            currentIndex = 0;
+            window.currentIndex = 0; // AI sync
+            resetFlip();
+            updateCardDisplay();
+        }
+
+        function updateCardDisplay() {
+            if (currentCards.length === 0) return;
+
+            const card = currentCards[currentIndex];
+            
+            questionEl.innerText = card.question;
+            categoryEl.innerText = card.category;
+
+            answerTitleEl.innerText = card.answerTitle;
+            answerDescEl.innerText = card.answerDesc;
+            sourceEl.innerText = card.source;
+
+            currentIndexEl.innerText = currentIndex + 1;
+            totalIndexEl.innerText = currentCards.length;
+
+            const progress = ((currentIndex + 1) / currentCards.length) * 100;
+            progressBarEl.style.width = `${progress}%`;
+            
+            // Sync Global index for AI
+            window.currentIndex = allCards.findIndex(c => c.id === card.id);
+        }
+
+        window.toggleFlip = function() {
+            isFlipped = !isFlipped;
+            if (isFlipped) {
+                flashcardEl.classList.add('is-flipped');
+            } else {
+                flashcardEl.classList.remove('is-flipped');
+            }
+        }
+
+        window.resetFlip = function() {
+            isFlipped = false;
+            flashcardEl.classList.remove('is-flipped');
+        }
+
+        window.nextCard = function() {
+            if (currentIndex < currentCards.length - 1) {
+                resetFlip();
+                setTimeout(() => {
+                    currentIndex++;
+                    updateCardDisplay();
+                }, 200);
+            } else {
+                resetFlip();
+                setTimeout(() => {
+                    currentIndex = 0;
+                    updateCardDisplay();
+                }, 200);
+            }
+        }
+
+        window.prevCard = function() {
+            if (currentIndex > 0) {
+                resetFlip();
+                setTimeout(() => {
+                    currentIndex--;
+                    updateCardDisplay();
+                }, 200);
+            }
+        }
+
+        // --- Chat & Modal Logic ---
+        window.openApiKeyModal = function() {
+            document.getElementById('apiKeyModal').classList.remove('hidden');
+            document.getElementById('apiKeyModal').classList.add('flex');
+        }
+
+        window.closeApiKeyModal = function() {
+            document.getElementById('apiKeyModal').classList.add('hidden');
+            document.getElementById('apiKeyModal').classList.remove('flex');
+        }
+
+        window.toggleChat = function() {
+            if (chatContainer.style.display === 'flex') {
+                chatContainer.style.display = 'none';
+            } else {
+                chatContainer.style.display = 'flex';
+                // Focus input
+                setTimeout(() => document.getElementById('chatInput').focus(), 100);
+            }
+        }
+
+        window.handleChatKeyPress = function(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        window.closeAiModal = function() {
+            document.getElementById('aiModal').classList.add('hidden');
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('apiKeyModal').classList.contains('flex')) return;
+            if (document.getElementById('chatContainer').style.display === 'flex') return;
+            
+            if (e.code === 'Space' || e.code === 'Enter') {
+                toggleFlip();
+            } else if (e.code === 'ArrowRight') {
+                nextCard();
+            } else if (e.code === 'ArrowLeft') {
+                prevCard();
+            }
+        });
+
+        // Init
+        initCategories();
+        updateCardDisplay();
+
+    </script>
+</body>
+</html>
